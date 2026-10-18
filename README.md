@@ -53,12 +53,11 @@ Sign in with the administrator credentials configured in `.secrets/.env`. The Gr
 
 ```mermaid
 flowchart TB
-    A["Monitoring clients"] --> B["Grafana Alloy"]
-    B -->|Host metrics| C["Prometheus"]
-    B -.->|Docker container logs (json-file driver)| D["Loki"]
+    A["Monitoring client hosts"] --> B["Grafana Alloy"]
+    B -->|"Host metrics: Prometheus remote-write"| C["Prometheus"]
+    B -.->|"Docker logs: discovered json-file targets"| D["Loki"]
     C --> E["Grafana"]
     D --> E
-
 ```
 
 ## Components
@@ -72,11 +71,12 @@ flowchart TB
 
 ## Data Flow
 
-1. Grafana Alloy collects host metrics from monitoring clients.
-2. Alloy sends metrics to the central Prometheus remote-write endpoint.
-3. When Docker log targets are discovered and configured, Alloy forwards Docker container logs to Loki.
-4. Grafana queries Prometheus and Loki through provisioned data sources.
-5. A temporary log generator can produce sample stdout logs to validate the logging pipeline.
+1. Grafana Alloy runs on monitoring client hosts and collects host metrics.
+2. Alloy sends metrics to the monitoring server's Prometheus remote-write endpoint.
+3. The Docker log discovery helper identifies active containers using the `json-file` logging driver and makes their log files available to Alloy.
+4. When eligible Docker log targets are configured, Alloy forwards their logs to Loki.
+5. Grafana queries Prometheus and Loki through provisioned data sources.
+6. The optional log generator produces sample stdout logs to help validate the logging pipeline.
 
 ## Configuration
 
@@ -120,7 +120,7 @@ Container image versions and network bind addresses are configurable. Review the
 
 ### Persistent data and backups
 
-The stack uses persistent Docker volumes for Grafana, Prometheus, and Loki data. Configuration backups are enabled by default; full historical-data backups are optional and disabled by default. Review backup settings and test restoration before relying on them.
+The stack uses persistent Docker volumes for Grafana, Prometheus, and Loki data. The lab inventory defines backup policy settings, including a configuration-backup mode and an opt-in setting for full historical data. However, these settings alone do not establish that scheduled monitoring backups are implemented or running. Verify the available backup workflow and test restoration before relying on it. The separate `./scripts/profile-manager.sh backup` command creates a verified archive of selected repository configuration and automation files; it is not a backup of monitoring volumes or historical metrics and logs.
 
 ## Security
 
@@ -161,11 +161,12 @@ Only the Single Instance profile is implemented. HA and scale-out profiles are p
 - [x] Alloy-based host metrics collection
 - [x] Conditional Docker container log forwarding for `json-file` containers
 - [x] Temporary log generator for pipeline validation
-- [x] Configuration backup workflow
+- [x] Verified repository profile/configuration backup workflow
+- [ ] Implement and test monitoring configuration backup and recovery
+- [ ] Implement and test full historical-data backup and restoration
 - [ ] Implement and test High Availability in the lab
 - [ ] Implement and test scale-out deployment
 - [ ] Expand dashboard and alerting coverage
-- [ ] Test backup restoration and document recovery procedures
 
 
 ## Support the Project
