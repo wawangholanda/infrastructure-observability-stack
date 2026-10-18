@@ -4,6 +4,10 @@
     name: acl
     state: present
     update_cache: false
+  register: monitoring_acl_install
+  retries: 3
+  delay: 10
+  until: monitoring_acl_install is succeeded
 
 - name: Create monitoring configuration directories
   ansible.builtin.file:

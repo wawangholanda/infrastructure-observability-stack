@@ -63,25 +63,25 @@ class ProductionInventoryTests(unittest.TestCase):
     def test_builds_expected_inventory_structure(self):
         production = load_production_profile(self.profile_path)
         inventory = build_inventory(production)
-        group = inventory["all"]["children"]["ec2_production"]
+        group = inventory["all"]["children"]["monitoring_clients"]
 
         self.assertEqual(
-            group["children"]["frontend"]["hosts"]["ec2-frontend"]["ansible_host"],
+            group["hosts"]["frontend"]["ansible_host"],
             "192.0.2.10",
         )
         self.assertEqual(
-            group["children"]["backend"]["hosts"]["ec2-backend"]["ansible_host"],
+            group["hosts"]["backend"]["ansible_host"],
             "192.0.2.11",
         )
         self.assertEqual(
-            group["children"]["rpc"]["hosts"]["ec2-rpc"]["ansible_host"],
+            group["hosts"]["rpc"]["ansible_host"],
             "192.0.2.12",
         )
         self.assertEqual(group["vars"]["ansible_user"], "ubuntu")
         self.assertTrue(group["vars"]["ansible_become"])
-        self.assertEqual(group["vars"]["ec2_monitoring_endpoint_host"], "192.0.2.20")
-        self.assertEqual(group["vars"]["ec2_prometheus_remote_write_port"], 9090)
-        self.assertEqual(group["vars"]["ec2_loki_push_port"], 3100)
+        self.assertEqual(group["vars"]["monitoring_endpoint_host"], "192.0.2.20")
+        self.assertEqual(group["vars"]["prometheus_remote_write_port"], 9090)
+        self.assertEqual(group["vars"]["loki_push_port"], 3100)
         self.assertEqual(
             group["vars"]["ansible_ssh_private_key_file"],
             "/tmp/example-key.pem",
@@ -93,7 +93,7 @@ class ProductionInventoryTests(unittest.TestCase):
 
         production = load_production_profile(self.profile_path)
         inventory = build_inventory(production)
-        group_vars = inventory["all"]["children"]["ec2_production"]["vars"]
+        group_vars = inventory["all"]["children"]["monitoring_clients"]["vars"]
 
         self.assertNotIn("ansible_ssh_private_key_file", group_vars)
         self.assertEqual(group_vars["ansible_user"], "ubuntu")
@@ -123,18 +123,18 @@ class ProductionInventoryTests(unittest.TestCase):
 
         production = load_production_profile(self.profile_path)
         inventory = build_inventory(production)
-        groups = inventory["all"]["children"]["ec2_production"]["children"]
+        groups = inventory["all"]["children"]["monitoring_clients"]["hosts"]
 
         self.assertEqual(
-            groups["frontend"]["hosts"]["ec2-web01"]["ansible_host"],
+            groups["web01"]["ansible_host"],
             "192.0.2.30",
         )
         self.assertEqual(
-            groups["web"]["hosts"]["ec2-web01"]["ansible_host"],
+            groups["web01"]["ansible_host"],
             "192.0.2.30",
         )
         self.assertEqual(
-            groups["backend"]["hosts"]["ec2-api01"]["ansible_host"],
+            groups["api01"]["ansible_host"],
             "192.0.2.31",
         )
 

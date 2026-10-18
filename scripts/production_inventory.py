@@ -114,25 +114,24 @@ def build_inventory(production):
     if "servers" in production:
         servers = production["servers"]
     else:
-        # Convert the legacy mapping into the generic internal representation.
+        # Backward compatibility: accept the legacy production.ec2 profile,
+        # but emit the same generic inventory structure as the new schema.
         servers = [
-            {"name": name, "ansible_host": host["ansible_host"], "groups": [name]}
+            {"name": name, "ansible_host": host["ansible_host"]}
             for name, host in production["ec2"].items()
         ]
 
+    client_hosts = {}
     for server in servers:
-        hostname = f"ec2-{server['name']}"
-        host_entry = {"ansible_host": server["ansible_host"]}
-
-        for group in server.get("groups", [server["name"]]):
-            groups.setdefault(group, {}).setdefault("hosts", {})[hostname] = host_entry.copy()
+        hostname = server["name"]
+        client_hosts[hostname] = {"ansible_host": server["ansible_host"]}
 
     group_vars = {
         "ansible_user": ssh["user"],
         "ansible_become": ssh["become"],
-        "ec2_monitoring_endpoint_host": production["monitoring"]["endpoint_host"],
-        "ec2_prometheus_remote_write_port": production["monitoring"]["prometheus_remote_write_port"],
-        "ec2_loki_push_port": production["monitoring"]["loki_push_port"],
+        "monitoring_endpoint_host": production["monitoring"]["endpoint_host"],
+        "prometheus_remote_write_port": production["monitoring"]["prometheus_remote_write_port"],
+        "loki_push_port": production["monitoring"]["loki_push_port"],
     }
 
     private_key = ssh.get("private_key")
@@ -142,8 +141,8 @@ def build_inventory(production):
     return {
         "all": {
             "children": {
-                "ec2_production": {
-                    "children": groups,
+                "monitoring_clients": {
+                    "hosts": client_hosts,
                     "vars": group_vars,
                 }
             }

@@ -1,0 +1,12 @@
+---
+- name: Ensure Docker log generator is running
+  community.docker.docker_container:
+    name: "{{ log_generator_container_name }}"
+    image: "{{ log_generator_image }}"
+    pull: missing
+    state: started
+    restart_policy: "{{ log_generator_restart_policy }}"
+    command:
+      - sh
+      - -c
+      - 'i=0; while true; do i=$((i+1)); echo "log-generator level=info sequence=$i message=stdout-test"; sleep {{ log_generator_interval_seconds }}; done'

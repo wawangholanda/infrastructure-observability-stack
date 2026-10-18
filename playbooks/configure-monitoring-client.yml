@@ -1,0 +1,6 @@
+---
+- name: Configure monitoring agent on monitoring clients
+  hosts: monitoring_clients
+  become: true
+  roles:
+    - monitoring_agent

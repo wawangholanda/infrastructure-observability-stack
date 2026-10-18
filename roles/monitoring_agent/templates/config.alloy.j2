@@ -18,21 +18,22 @@ prometheus.scrape "host" {
 
 prometheus.remote_write "central" {
   endpoint {
-    url = "{{ ec2_prometheus_remote_write_url }}"
+    url = "{{ alloy_prometheus_remote_write_url }}"
   }
 
   external_labels = {
-    instance = "{{ ec2_alloy_hostname_label }}",
+    instance = "{{ alloy_hostname_label }}",
   }
 }
 
+{% if alloy_docker_log_targets | length > 0 %}
 local.file_match "docker_app_logs" {
   path_targets = [
-{% for target in ec2_alloy_docker_log_targets %}
+{% for target in alloy_docker_log_targets %}
     {
       __path__  = {{ target.path | to_json }},
       job       = "docker",
-      instance  = {{ ec2_alloy_hostname_label | to_json }},
+      instance  = {{ alloy_hostname_label | to_json }},
       container = {{ target.container | to_json }},
       image     = {{ target.image | to_json }},
     },
@@ -53,6 +54,7 @@ loki.source.file "docker_app_logs" {
 
 loki.write "central" {
   endpoint {
-    url = "{{ ec2_loki_push_url }}"
+    url = "{{ alloy_loki_push_url }}"
   }
 }
+{% endif %}

@@ -1,0 +1,7 @@
+---
+- name: Install Docker Engine on monitoring and agent hosts
+  hosts: 'monitoring:monitoring_clients'
+  become: true
+  gather_facts: true
+  roles:
+    - docker_engine

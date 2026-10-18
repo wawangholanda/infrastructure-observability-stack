@@ -63,3 +63,9 @@ grafana-data/
 # Python generated files
 __pycache__/
 *.py[cod]
+
+# Locally generated lab and production profiles (may contain private infrastructure details)
+.secrets/assets/
+
+# Local SSH Host CA keys and certificates
+.secrets/ssh-host-ca/

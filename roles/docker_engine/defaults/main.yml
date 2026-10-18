@@ -1,0 +1,21 @@
+---
+# Docker's official APT repository.
+docker_engine_apt_key_url: https://download.docker.com/linux/debian/gpg
+docker_engine_apt_keyring: /etc/apt/keyrings/docker.asc
+docker_engine_apt_repository: https://download.docker.com/linux/debian
+
+# Supported Debian releases for this project.
+docker_engine_supported_releases:
+  - bullseye
+  - bookworm
+  - trixie
+
+# Install Docker Engine and the Compose v2 plugin.
+docker_engine_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+docker_engine_service_name: docker

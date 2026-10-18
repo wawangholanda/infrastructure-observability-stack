@@ -1,0 +1,11 @@
+---
+- name: Remove stdout log generator from monitoring clients
+  hosts: monitoring_clients
+  become: true
+  vars_files:
+    - ../roles/log_generator/defaults/main.yml
+  tasks:
+    - name: Remove log generator container
+      community.docker.docker_container:
+        name: "{{ log_generator_container_name }}"
+        state: absent

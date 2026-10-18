@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover active application Docker JSON log files without reading log contents."""
+"""Discover active Docker JSON log files without reading log contents."""
 
 import json
 import os
@@ -18,23 +18,28 @@ def run_docker(*args):
 
 
 def main():
-    if len(sys.argv) != 2 or not sys.argv[1].strip():
-        raise SystemExit("A non-empty application image prefix is required")
+    if len(sys.argv) != 1:
+        raise SystemExit("This script does not accept arguments")
 
-    prefix = sys.argv[1]
     containers = []
 
     for line in run_docker("ps", "--format", "json").splitlines():
         if not line.strip():
             continue
-        item = json.loads(line)
-        if item.get("Image", "").startswith(prefix):
-            containers.append(item)
+        containers.append(json.loads(line))
 
     targets = []
     for container in containers:
+        container_id = container.get("ID")
+        if not container_id:
+            print(
+                "Skipping container without an ID",
+                file=sys.stderr,
+            )
+            continue
+
         inspected = json.loads(
-            run_docker("inspect", container["ID"])
+            run_docker("inspect", container_id)
         )[0]
 
         log_config = inspected.get("HostConfig", {}).get("LogConfig", {})
@@ -43,14 +48,18 @@ def main():
         image = inspected.get("Config", {}).get("Image", "")
 
         if log_config.get("Type") != "json-file":
-            raise SystemExit(
-                f"Container {name!r} does not use the json-file logging driver"
+            print(
+                f"Skipping {name!r}: logging driver is not json-file",
+                file=sys.stderr,
             )
+            continue
 
         if not log_path.startswith("/") or not os.path.isfile(log_path):
-            raise SystemExit(
-                f"Container {name!r} has no accessible Docker log file"
+            print(
+                f"Skipping {name!r}: Docker log file is unavailable",
+                file=sys.stderr,
             )
+            continue
 
         targets.append(
             {
@@ -58,11 +67,6 @@ def main():
                 "container": name,
                 "image": image,
             }
-        )
-
-    if not targets:
-        raise SystemExit(
-            f"No running containers found for image prefix {prefix!r}"
         )
 
     print(json.dumps(sorted(targets, key=lambda item: item["container"])))

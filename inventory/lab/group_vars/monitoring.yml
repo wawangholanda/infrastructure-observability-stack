@@ -7,7 +7,7 @@ monitoring_base_dir: /opt/observability
 monitoring_backup_staging_dir: /var/tmp/observability-backup
 
 # Permanent backups on the local Ansible workstation
-monitoring_backup_local_dir: "{{ lookup('env', 'HOME') }}/.local/backups/ec2-observability-stack"
+monitoring_backup_local_dir: "{{ lookup('env', 'HOME') }}/.local/backups/observability-stack"
 
 # Pin container image versions for reproducible deployments
 grafana_image: grafana/grafana:13.0.9

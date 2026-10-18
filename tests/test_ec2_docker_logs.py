@@ -6,7 +6,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = (
     ROOT_DIR
     / "roles"
-    / "ec2_monitoring_agent"
+    / "monitoring_agent"
     / "templates"
     / "config.alloy.j2"
 )
@@ -19,11 +19,11 @@ class Ec2DockerLogConfigTests(unittest.TestCase):
 
     def test_keeps_prometheus_metrics_pipeline(self):
         self.assertIn('prometheus.remote_write "central"', self.template)
-        self.assertIn("{{ ec2_prometheus_remote_write_url }}", self.template)
+        self.assertIn("{{ alloy_prometheus_remote_write_url }}", self.template)
 
     def test_keeps_central_loki_destination(self):
         self.assertIn('loki.write "central"', self.template)
-        self.assertIn("{{ ec2_loki_push_url }}", self.template)
+        self.assertIn("{{ alloy_loki_push_url }}", self.template)
 
     def test_uses_dedicated_docker_application_log_pipeline(self):
         self.assertIn('local.file_match "docker_app_logs"', self.template)

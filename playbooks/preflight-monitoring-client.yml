@@ -1,20 +1,20 @@
 ---
 - name: Check private connectivity to central monitoring
-  hosts: ec2-frontend
+  hosts: monitoring_clients
   gather_facts: false
   tasks:
     - name: Validate central endpoint configuration
       ansible.builtin.assert:
         that:
-          - ec2_monitoring_endpoint_host is defined
-          - ec2_monitoring_endpoint_host | string | length > 0
+          - monitoring_endpoint_host is defined
+          - monitoring_endpoint_host | string | length > 0
         fail_msg: "Central monitoring endpoint is not configured."
       no_log: true
 
     - name: Check Prometheus remote-write port
       ansible.builtin.wait_for:
-        host: "{{ ec2_monitoring_endpoint_host }}"
-        port: 9090
+        host: "{{ monitoring_endpoint_host }}"
+        port: "{{ prometheus_remote_write_port }}"
         state: started
         connect_timeout: 3
         timeout: 8
@@ -22,8 +22,8 @@
 
     - name: Check Loki push port
       ansible.builtin.wait_for:
-        host: "{{ ec2_monitoring_endpoint_host }}"
-        port: 3100
+        host: "{{ monitoring_endpoint_host }}"
+        port: "{{ loki_push_port }}"
         state: started
         connect_timeout: 3
         timeout: 8
@@ -31,4 +31,4 @@
 
     - name: Report connectivity result
       ansible.builtin.debug:
-        msg: "Prometheus and Loki ports are reachable from EC2 frontend."
+        msg: "Prometheus and Loki ports are reachable from monitoring clients."

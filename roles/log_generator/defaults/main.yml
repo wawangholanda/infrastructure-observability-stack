@@ -1,0 +1,6 @@
+---
+# Lightweight container for generating stdout logs for Loki validation.
+log_generator_image: busybox:1.36
+log_generator_container_name: log-generator
+log_generator_restart_policy: unless-stopped
+log_generator_interval_seconds: 5

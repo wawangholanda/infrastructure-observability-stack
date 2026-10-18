@@ -1,0 +1,108 @@
+---
+- name: Validate supported Debian release
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == "Debian"
+      - ansible_facts.distribution_release in docker_engine_supported_releases
+    fail_msg: >-
+      The docker_engine role supports Debian releases
+      {{ docker_engine_supported_releases | join(', ') }}.
+      Detected {{ ansible_facts.distribution }}
+      {{ ansible_facts.distribution_release }}.
+
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Refuse to replace potentially conflicting container packages automatically
+  ansible.builtin.assert:
+    that:
+      - item not in ansible_facts.packages
+    fail_msg: >-
+      Package {{ item }} is installed on {{ inventory_hostname }}.
+      Review the existing container runtime before installing Docker CE.
+      This role will not remove or replace existing packages automatically.
+  loop:
+    - docker.io
+    - docker-doc
+    - docker-compose
+    - podman-docker
+    - containerd
+    - runc
+
+- name: Ensure APT keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Docker repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Download official Docker repository signing key
+  ansible.builtin.get_url:
+    url: "{{ docker_engine_apt_key_url }}"
+    dest: "{{ docker_engine_apt_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure official Docker APT repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/docker.sources
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: {{ docker_engine_apt_repository }}
+      Suites: {{ ansible_facts.distribution_release }}
+      Components: stable
+      Signed-By: {{ docker_engine_apt_keyring }}
+
+- name: Refresh APT cache for Docker repository
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
+
+- name: Install Docker Engine and Compose plugin
+  ansible.builtin.apt:
+    name: "{{ docker_engine_packages }}"
+    state: present
+
+- name: Ensure Docker service is enabled and running
+  ansible.builtin.service:
+    name: "{{ docker_engine_service_name }}"
+    enabled: true
+    state: started
+
+- name: Verify Docker CLI
+  ansible.builtin.command:
+    argv:
+      - docker
+      - --version
+  register: docker_engine_cli_version
+  changed_when: false
+
+- name: Verify Docker Compose plugin
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  register: docker_engine_compose_version
+  changed_when: false
+
+- name: Display installed Docker versions
+  ansible.builtin.debug:
+    msg:
+      - "{{ docker_engine_cli_version.stdout }}"
+      - "{{ docker_engine_compose_version.stdout }}"

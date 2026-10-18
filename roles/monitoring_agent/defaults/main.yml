@@ -1,0 +1,19 @@
+---
+# Pin the agent image for reproducible deployments.
+alloy_image: grafana/alloy:v1.20.1
+
+# Central monitoring endpoint settings.
+# Set these in inventory/group_vars or host_vars for the target environment.
+monitoring_endpoint_host: ""
+prometheus_remote_write_port: 9090
+loki_push_port: 3100
+
+# Agent configuration and runtime.
+alloy_base_dir: /opt/monitoring-agent
+alloy_data_dir: /opt/monitoring-agent/data
+alloy_container_name: monitoring-alloy
+alloy_hostname_label: "{{ inventory_hostname }}"
+
+# Endpoint URLs are derived from environment-specific variables.
+alloy_prometheus_remote_write_url: "http://{{ monitoring_endpoint_host }}:{{ prometheus_remote_write_port }}/api/v1/write"
+alloy_loki_push_url: "http://{{ monitoring_endpoint_host }}:{{ loki_push_port }}/loki/api/v1/push"

@@ -37,6 +37,9 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time={{ prometheus_retention_time }}
       - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    ports:
+      - "{{ monitoring_listen_ip }}:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -53,6 +56,8 @@ services:
     restart: unless-stopped
     command:
       - -config.file=/etc/loki/config.yml
+    ports:
+      - "{{ monitoring_listen_ip }}:3100:3100"
     volumes:
       - ./loki/config.yml:/etc/loki/config.yml:ro
       - loki_data:/loki

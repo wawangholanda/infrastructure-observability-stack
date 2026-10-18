@@ -1,0 +1,6 @@
+---
+- name: Install stdout log generator on monitoring clients
+  hosts: monitoring_clients
+  become: true
+  roles:
+    - log_generator
