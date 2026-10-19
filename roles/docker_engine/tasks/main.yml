@@ -115,6 +115,7 @@
     name: "{{ docker_engine_service_name }}"
     enabled: true
     state: started
+  when: not docker_engine_runtime_installed
 
 - name: Verify Docker CLI
   ansible.builtin.command:

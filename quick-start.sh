@@ -104,10 +104,18 @@ if [[ "$MODE" == "menu" ]]; then
   if [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]]; then
     [[ -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] ||
       fail "Profile state must be a regular, non-symlink file."
-  fi
 
-  # A saved deployment profile must never bypass explicit user selection.
-  show_profile_menu
+    PROFILE_STATUS="$("$ROOT_DIR/scripts/profile-manager.sh" status)"
+    if grep -Fqx "Active profile: single" <<<"$PROFILE_STATUS" &&
+       grep -Fqx "Deployment status: deployed" <<<"$PROFILE_STATUS"; then
+      MODE="single"
+      info "Using saved profile: Single Instance (single/deployed)"
+    else
+      show_profile_menu
+    fi
+  else
+    show_profile_menu
+  fi
 fi
 
 case "$MODE" in
@@ -541,6 +549,9 @@ while true; do
     yes|y)
       info "Removing log generator from monitoring clients"
       ansible-playbook -i "$INVENTORY_FILE" playbooks/remove-log-generator.yml "${AUTH_ARGS[@]}"
+
+      info "Refreshing monitoring agent configuration after log-generator cleanup"
+      ansible-playbook -i "$INVENTORY_FILE" playbooks/configure-monitoring-client.yml "${AUTH_ARGS[@]}"
       break
       ;;
     no|n)
@@ -557,3 +568,27 @@ info "Recording successful Single Instance deployment"
 "$ROOT_DIR/scripts/profile-manager.sh" set-state single deployed
 
 printf '\nSingle Instance deployment completed successfully.\n'
+
+python - "$PROFILE_FILE" <<'PYPROFILEURL'
+import sys
+from pathlib import Path
+import yaml
+
+try:
+    profile = yaml.safe_load(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    grafana = profile["lab"]["grafana"]
+    wireguard_ip = grafana["wireguard_bind_ip"]
+    lan_ip = grafana["lan_bind_ip"]
+    port = grafana["host_port"]
+    if not all(isinstance(value, str) and value.strip() for value in (wireguard_ip, lan_ip)):
+        raise ValueError("Grafana bind IPs must be non-empty strings")
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("Grafana host port must be an integer between 1 and 65535")
+except (OSError, KeyError, TypeError, ValueError, yaml.YAMLError) as exc:
+    print(f"ERROR: Cannot display Grafana access URLs: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+print("\nGrafana access URLs:")
+print(f"  WireGuard: http://{wireguard_ip}:{port}")
+print(f"  LAN/Public: http://{lan_ip}:{port}")
+PYPROFILEURL

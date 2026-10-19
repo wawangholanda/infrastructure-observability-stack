@@ -115,11 +115,16 @@ class DockerEngineRoleTests(unittest.TestCase):
                     f"{name} must be skipped when a Docker runtime already exists.",
                 )
 
-        for name in [
-            "Ensure Docker service is enabled and running",
-            "Verify Docker CLI",
-            "Verify Docker Compose plugin",
-        ]:
+        service_task = self.find_task(
+            "Ensure Docker service is enabled and running"
+        )
+        self.assertEqual(
+            service_task.get("when"),
+            "not docker_engine_runtime_installed",
+            "Do not manage the Docker service when a runtime already exists.",
+        )
+
+        for name in ["Verify Docker CLI", "Verify Docker Compose plugin"]:
             with self.subTest(task=name):
                 task = self.find_task(name)
                 self.assertNotEqual(
@@ -178,18 +183,11 @@ class DockerEngineRoleTests(unittest.TestCase):
         detection_task = self.find_task(
             "Detect an existing Docker Engine package"
         )
-        self.assertIn(
-            "docker-ce",
-            detection_task["ansible.builtin.set_fact"][
-                "docker_engine_runtime_installed"
-            ],
-        )
-        self.assertIn(
-            "docker.io",
-            detection_task["ansible.builtin.set_fact"][
-                "docker_engine_runtime_installed"
-            ],
-        )
+        expression = detection_task["ansible.builtin.set_fact"][
+            "docker_engine_runtime_installed"
+        ]
+        self.assertIn("docker-ce", expression)
+        self.assertIn("docker.io", expression)
 
         service_task = self.find_task(
             "Ensure Docker service is enabled and running"
@@ -200,6 +198,10 @@ class DockerEngineRoleTests(unittest.TestCase):
         )
         self.assertTrue(
             service_task["ansible.builtin.service"]["enabled"]
+        )
+        self.assertEqual(
+            service_task["when"],
+            "not docker_engine_runtime_installed",
         )
 
         compose_task = self.find_task("Verify Docker Compose plugin")
@@ -214,16 +216,24 @@ class DockerEngineRoleTests(unittest.TestCase):
         self.assertTrue(play["become"])
         self.assertIn("docker_engine", play["roles"])
 
-    def test_quick_start_reuses_successfully_deployed_single_profile(self):
+    def test_quick_start_reuses_saved_deployed_profile_without_menu(self):
         self.assertIn('STATE_FILE="$ROOT_DIR/.state/profile.json"', self.quick_start)
-        self.assertIn('PROFILE_STATUS="$("$ROOT_DIR/scripts/profile-manager.sh" status)"', self.quick_start)
-        self.assertIn("Active profile: single", self.quick_start)
-        self.assertIn("Deployment status: deployed", self.quick_start)
-        self.assertIn('MODE="single"', self.quick_start)
+        self.assertIn(
+            'fail "Profile state must be a regular, non-symlink file."',
+            self.quick_start,
+        )
+        self.assertIn(
+            'PROFILE_STATUS="$("$ROOT_DIR/scripts/profile-manager.sh" status)"',
+            self.quick_start,
+        )
+        self.assertIn('grep -Fqx "Active profile: single"', self.quick_start)
+        self.assertIn('grep -Fqx "Deployment status: deployed"', self.quick_start)
         self.assertIn(
             "Using saved profile: Single Instance (single/deployed)",
             self.quick_start,
         )
+        self.assertIn("show_profile_menu", self.quick_start)
+        self.assertIn('MODE="check"', self.quick_start)
 
     def test_quick_start_keeps_explicit_modes_and_check_option(self):
         self.assertIn("    --mode)", self.quick_start)
@@ -256,6 +266,40 @@ class DockerEngineRoleTests(unittest.TestCase):
                 check_exit,
                 f"{playbook} must remain after the check-mode exit",
             )
+
+    def test_quick_start_refreshes_monitoring_after_log_generator_cleanup(self):
+        cleanup_start = self.quick_start.index(
+            '    yes|y)\n',
+            self.quick_start.index("playbooks/install-log-generator.yml"),
+        )
+        cleanup_end = self.quick_start.index(
+            '    no|n)\n',
+            cleanup_start,
+        )
+        yes_branch = self.quick_start[cleanup_start:cleanup_end]
+
+        remove_index = yes_branch.index(
+            "playbooks/remove-log-generator.yml"
+        )
+        refresh_index = yes_branch.index(
+            "playbooks/configure-monitoring-client.yml"
+        )
+        self.assertLess(
+            remove_index,
+            refresh_index,
+            "Monitoring configuration must refresh after log-generator removal",
+        )
+
+        no_end = self.quick_start.index(
+            "    *)\n",
+            cleanup_end,
+        )
+        no_branch = self.quick_start[cleanup_end:no_end]
+        self.assertNotIn("playbooks/remove-log-generator.yml", no_branch)
+        self.assertNotIn(
+            "playbooks/configure-monitoring-client.yml",
+            no_branch,
+        )
 
     def test_quick_start_defines_profile_menu_only_once(self):
         self.assertEqual(

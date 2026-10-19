@@ -27,3 +27,11 @@ monitoring_backup_schedule: weekly
 # Full historical-data backup is optional and disabled by default.
 monitoring_backup_mode: config
 monitoring_full_backup_enabled: false
+
+# Host bindings for monitoring services
+grafana_wireguard_bind_ip: "10.8.0.20"
+grafana_lan_bind_ip: "185.2.101.147"
+grafana_host_port: 3002
+prometheus_host_port: 9090
+loki_host_port: 3100
+monitoring_listen_ip: "10.8.0.20"

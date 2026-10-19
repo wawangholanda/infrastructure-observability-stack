@@ -1,4 +1,10 @@
 ---
+- name: Install Python requests dependency for Docker module
+  ansible.builtin.apt:
+    name: python3-requests
+    state: present
+    update_cache: false
+
 - name: Ensure Docker log generator is running
   community.docker.docker_container:
     name: "{{ log_generator_container_name }}"
