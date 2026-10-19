@@ -84,12 +84,56 @@ class DockerEngineRoleTests(unittest.TestCase):
             "{{ docker_engine_apt_key_urls[ansible_facts.distribution] }}",
         )
 
+    def test_detects_existing_docker_ce_or_docker_io(self):
+        task = self.find_task("Detect an existing Docker Engine package")
+        expression = task["ansible.builtin.set_fact"][
+            "docker_engine_runtime_installed"
+        ]
+        self.assertIn("'docker-ce' in ansible_facts.packages", expression)
+        self.assertIn("'docker.io' in ansible_facts.packages", expression)
+        self.assertIn("or", expression)
+
+    def test_skips_repository_setup_when_docker_runtime_exists(self):
+        repository_task_names = [
+            "Select official Docker APT repository for the operating system",
+            "Refuse to replace potentially conflicting container packages automatically",
+            "Ensure APT keyring directory exists",
+            "Install Docker repository prerequisites",
+            "Download official Docker repository signing key",
+            "Configure official Docker APT repository",
+            "Remove legacy Docker repository list",
+            "Refresh APT cache for Docker repository",
+            "Install Docker Engine and Compose plugin",
+        ]
+
+        for name in repository_task_names:
+            with self.subTest(task=name):
+                task = self.find_task(name)
+                self.assertEqual(
+                    task.get("when"),
+                    "not docker_engine_runtime_installed",
+                    f"{name} must be skipped when a Docker runtime already exists.",
+                )
+
+        for name in [
+            "Ensure Docker service is enabled and running",
+            "Verify Docker CLI",
+            "Verify Docker Compose plugin",
+        ]:
+            with self.subTest(task=name):
+                task = self.find_task(name)
+                self.assertNotEqual(
+                    task.get("when"),
+                    "not docker_engine_runtime_installed",
+                    f"{name} must still run when a Docker runtime already exists.",
+                )
+
     def test_refuses_conflicting_packages_without_removing_them(self):
         task = self.find_task(
             "Refuse to replace potentially conflicting container packages automatically"
         )
         self.assertIn("ansible.builtin.assert", task)
-        self.assertIn("docker.io", task["loop"])
+        self.assertNotIn("docker.io", task["loop"])
         self.assertIn("containerd", task["loop"])
         self.assertIn("runc", task["loop"])
 
@@ -128,7 +172,23 @@ class DockerEngineRoleTests(unittest.TestCase):
         )
         self.assertEqual(
             install_task["when"],
-            "'docker-ce' not in ansible_facts.packages",
+            "not docker_engine_runtime_installed",
+        )
+
+        detection_task = self.find_task(
+            "Detect an existing Docker Engine package"
+        )
+        self.assertIn(
+            "docker-ce",
+            detection_task["ansible.builtin.set_fact"][
+                "docker_engine_runtime_installed"
+            ],
+        )
+        self.assertIn(
+            "docker.io",
+            detection_task["ansible.builtin.set_fact"][
+                "docker_engine_runtime_installed"
+            ],
         )
 
         service_task = self.find_task(

@@ -12,16 +12,23 @@
       Detected {{ ansible_facts.distribution }}
       {{ ansible_facts.distribution_release }}.
 
+- name: Gather installed package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Detect an existing Docker Engine package
+  ansible.builtin.set_fact:
+    docker_engine_runtime_installed: >-
+      {{ 'docker-ce' in ansible_facts.packages or
+         'docker.io' in ansible_facts.packages }}
+
 - name: Select official Docker APT repository for the operating system
   ansible.builtin.set_fact:
     docker_engine_apt_repository: >-
       {{ docker_engine_apt_repositories[ansible_facts.distribution] }}
     docker_engine_apt_key_url: >-
       {{ docker_engine_apt_key_urls[ansible_facts.distribution] }}
-
-- name: Gather installed package facts
-  ansible.builtin.package_facts:
-    manager: auto
+  when: not docker_engine_runtime_installed
 
 - name: Refuse to replace potentially conflicting container packages automatically
   ansible.builtin.assert:
@@ -32,12 +39,12 @@
       Review the existing container runtime before installing Docker CE.
       This role will not remove or replace existing packages automatically.
   loop:
-    - docker.io
     - docker-doc
     - docker-compose
     - podman-docker
     - containerd
     - runc
+  when: not docker_engine_runtime_installed
 
 - name: Ensure APT keyring directory exists
   ansible.builtin.file:
@@ -46,6 +53,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: not docker_engine_runtime_installed
 
 - name: Install Docker repository prerequisites
   ansible.builtin.apt:
@@ -54,6 +62,7 @@
       - curl
     state: present
     update_cache: false
+  when: not docker_engine_runtime_installed
 
 - name: Download official Docker repository signing key
   ansible.builtin.get_url:
@@ -67,6 +76,7 @@
   retries: 3
   delay: 5
   until: docker_engine_key_download is succeeded
+  when: not docker_engine_runtime_installed
 
 - name: Configure official Docker APT repository
   ansible.builtin.copy:
@@ -80,22 +90,25 @@
       Suites: {{ ansible_facts.distribution_release }}
       Components: stable
       Signed-By: {{ docker_engine_apt_keyring }}
+  when: not docker_engine_runtime_installed
 
 - name: Remove legacy Docker repository list
   ansible.builtin.file:
     path: /etc/apt/sources.list.d/docker.list
     state: absent
+  when: not docker_engine_runtime_installed
 
 - name: Refresh APT cache for Docker repository
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 0
+  when: not docker_engine_runtime_installed
 
 - name: Install Docker Engine and Compose plugin
   ansible.builtin.apt:
     name: "{{ docker_engine_packages }}"
     state: present
-  when: "'docker-ce' not in ansible_facts.packages"
+  when: not docker_engine_runtime_installed
 
 - name: Ensure Docker service is enabled and running
   ansible.builtin.service:
@@ -119,9 +132,13 @@
       - version
   register: docker_engine_compose_version
   changed_when: false
+  failed_when: false
 
 - name: Display installed Docker versions
   ansible.builtin.debug:
     msg:
       - "{{ docker_engine_cli_version.stdout }}"
-      - "{{ docker_engine_compose_version.stdout }}"
+      - >-
+        {{ docker_engine_compose_version.stdout
+           if docker_engine_compose_version.rc == 0
+           else 'Docker Compose plugin is unavailable; no runtime was installed or replaced.' }}
