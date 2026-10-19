@@ -230,6 +230,33 @@ class DockerEngineRoleTests(unittest.TestCase):
         self.assertIn("    --check)", self.quick_start)
         self.assertIn('MODE="check"', self.quick_start)
 
+    def test_quick_start_check_exits_before_deployment_playbooks(self):
+        check_guard = self.quick_start.index(
+            'if [[ "$MODE" == "check" ]]; then'
+        )
+        check_exit = self.quick_start.index("  exit 0", check_guard)
+        deployment_start = self.quick_start.index(
+            'info "Initializing or validating local profile state"'
+        )
+
+        self.assertLess(check_guard, check_exit)
+        self.assertLess(check_exit, deployment_start)
+
+        for playbook in (
+            "playbooks/install-docker.yml",
+            "playbooks/configure-monitoring.yml",
+            "playbooks/deploy-monitoring.yml",
+            "playbooks/preflight-monitoring-client.yml",
+            "playbooks/install-log-generator.yml",
+            "playbooks/configure-monitoring-client.yml",
+            "playbooks/remove-log-generator.yml",
+        ):
+            self.assertGreater(
+                self.quick_start.index(playbook, deployment_start),
+                check_exit,
+                f"{playbook} must remain after the check-mode exit",
+            )
+
     def test_quick_start_defines_profile_menu_only_once(self):
         self.assertEqual(
             self.quick_start.count("Infrastructure Observability Stack"),
