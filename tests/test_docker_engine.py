@@ -30,8 +30,18 @@ class DockerEngineRoleTests(unittest.TestCase):
 
     def test_uses_official_docker_repository_and_packages(self):
         self.assertEqual(
-            self.defaults["docker_engine_apt_repository"],
-            "https://download.docker.com/linux/debian",
+            self.defaults["docker_engine_apt_repositories"],
+            {
+                "Debian": "https://download.docker.com/linux/debian",
+                "Ubuntu": "https://download.docker.com/linux/ubuntu",
+            },
+        )
+        self.assertEqual(
+            self.defaults["docker_engine_apt_key_urls"],
+            {
+                "Debian": "https://download.docker.com/linux/debian/gpg",
+                "Ubuntu": "https://download.docker.com/linux/ubuntu/gpg",
+            },
         )
         self.assertEqual(
             self.defaults["docker_engine_packages"],
@@ -43,18 +53,35 @@ class DockerEngineRoleTests(unittest.TestCase):
                 "docker-compose-plugin",
             ],
         )
-        self.assertIn("trixie", self.defaults["docker_engine_supported_releases"])
+        self.assertIn("trixie", self.defaults["docker_engine_supported_releases"]["Debian"])
+        self.assertIn("noble", self.defaults["docker_engine_supported_releases"]["Ubuntu"])
+        self.assertIn("resolute", self.defaults["docker_engine_supported_releases"]["Ubuntu"])
 
-    def test_validates_debian_release_before_installation(self):
-        self.assertIn("Validate supported Debian release", self.tasks[0]["name"])
+    def test_validates_supported_os_release_before_installation(self):
+        self.assertEqual(self.tasks[0]["name"], "Validate supported operating system")
         assertion = self.tasks[0]["ansible.builtin.assert"]
+        conditions = assertion["that"]
         self.assertTrue(
-            any("ansible_facts.distribution == \"Debian\"" in condition
-                for condition in assertion["that"])
+            any("ansible_facts.distribution in docker_engine_supported_releases" in condition
+                for condition in conditions)
         )
         self.assertTrue(
-            any("docker_engine_supported_releases" in condition
-                for condition in assertion["that"])
+            any("ansible_facts.distribution_release" in condition
+                and "docker_engine_supported_releases[ansible_facts.distribution]" in condition
+                for condition in conditions)
+        )
+
+        selection_task = self.find_task(
+            "Select official Docker APT repository for the operating system"
+        )
+        facts = selection_task["ansible.builtin.set_fact"]
+        self.assertEqual(
+            facts["docker_engine_apt_repository"],
+            "{{ docker_engine_apt_repositories[ansible_facts.distribution] }}",
+        )
+        self.assertEqual(
+            facts["docker_engine_apt_key_url"],
+            "{{ docker_engine_apt_key_urls[ansible_facts.distribution] }}",
         )
 
     def test_refuses_conflicting_packages_without_removing_them(self):
@@ -98,6 +125,10 @@ class DockerEngineRoleTests(unittest.TestCase):
         self.assertEqual(
             install_task["ansible.builtin.apt"]["name"],
             "{{ docker_engine_packages }}",
+        )
+        self.assertEqual(
+            install_task["when"],
+            "'docker-ce' not in ansible_facts.packages",
         )
 
         service_task = self.find_task(

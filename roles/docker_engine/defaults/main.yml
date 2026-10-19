@@ -1,14 +1,25 @@
 ---
-# Docker's official APT repository.
-docker_engine_apt_key_url: https://download.docker.com/linux/debian/gpg
+# Official Docker APT repository settings.
 docker_engine_apt_keyring: /etc/apt/keyrings/docker.asc
-docker_engine_apt_repository: https://download.docker.com/linux/debian
 
-# Supported Debian releases for this project.
+docker_engine_apt_repositories:
+  Debian: https://download.docker.com/linux/debian
+  Ubuntu: https://download.docker.com/linux/ubuntu
+
+docker_engine_apt_key_urls:
+  Debian: https://download.docker.com/linux/debian/gpg
+  Ubuntu: https://download.docker.com/linux/ubuntu/gpg
+
+# Supported releases are validated per operating system.
 docker_engine_supported_releases:
-  - bullseye
-  - bookworm
-  - trixie
+  Debian:
+    - bullseye
+    - bookworm
+    - trixie
+  Ubuntu:
+    - jammy
+    - noble
+    - resolute
 
 # Install Docker Engine and the Compose v2 plugin.
 docker_engine_packages:

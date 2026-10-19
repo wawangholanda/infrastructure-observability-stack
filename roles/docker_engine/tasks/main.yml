@@ -1,14 +1,23 @@
 ---
-- name: Validate supported Debian release
+- name: Validate supported operating system
   ansible.builtin.assert:
     that:
-      - ansible_facts.distribution == "Debian"
-      - ansible_facts.distribution_release in docker_engine_supported_releases
+      - ansible_facts.distribution in docker_engine_supported_releases
+      - >-
+        ansible_facts.distribution_release in
+        docker_engine_supported_releases[ansible_facts.distribution]
     fail_msg: >-
-      The docker_engine role supports Debian releases
-      {{ docker_engine_supported_releases | join(', ') }}.
+      The docker_engine role supports these OS releases:
+      {{ docker_engine_supported_releases | to_nice_yaml }}.
       Detected {{ ansible_facts.distribution }}
       {{ ansible_facts.distribution_release }}.
+
+- name: Select official Docker APT repository for the operating system
+  ansible.builtin.set_fact:
+    docker_engine_apt_repository: >-
+      {{ docker_engine_apt_repositories[ansible_facts.distribution] }}
+    docker_engine_apt_key_url: >-
+      {{ docker_engine_apt_key_urls[ansible_facts.distribution] }}
 
 - name: Gather installed package facts
   ansible.builtin.package_facts:
@@ -44,8 +53,7 @@
       - ca-certificates
       - curl
     state: present
-    update_cache: true
-    cache_valid_time: 3600
+    update_cache: false
 
 - name: Download official Docker repository signing key
   ansible.builtin.get_url:
@@ -54,6 +62,11 @@
     owner: root
     group: root
     mode: "0644"
+    timeout: 30
+  register: docker_engine_key_download
+  retries: 3
+  delay: 5
+  until: docker_engine_key_download is succeeded
 
 - name: Configure official Docker APT repository
   ansible.builtin.copy:
@@ -68,6 +81,11 @@
       Components: stable
       Signed-By: {{ docker_engine_apt_keyring }}
 
+- name: Remove legacy Docker repository list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+
 - name: Refresh APT cache for Docker repository
   ansible.builtin.apt:
     update_cache: true
@@ -77,6 +95,7 @@
   ansible.builtin.apt:
     name: "{{ docker_engine_packages }}"
     state: present
+  when: "'docker-ce' not in ansible_facts.packages"
 
 - name: Ensure Docker service is enabled and running
   ansible.builtin.service:
