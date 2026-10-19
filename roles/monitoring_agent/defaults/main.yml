@@ -2,6 +2,11 @@
 # Pin the agent image for reproducible deployments.
 alloy_image: grafana/alloy:v1.20.1
 
+# Container resource metrics collector.
+cadvisor_image: ghcr.io/google/cadvisor:v0.60.6
+cadvisor_container_name: monitoring-cadvisor
+monitoring_agent_docker_network: monitoring-agent-internal
+
 # Central monitoring endpoint settings.
 # Set these in inventory/group_vars or host_vars for the target environment.
 monitoring_endpoint_host: ""

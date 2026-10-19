@@ -16,6 +16,20 @@ prometheus.scrape "host" {
   scrape_timeout  = "10s"
 }
 
+prometheus.scrape "cadvisor" {
+  targets = [
+    {
+      "__address__" = "cadvisor:8080",
+      "job"         = "cadvisor",
+      "instance"    = "{{ alloy_hostname_label }}",
+    },
+  ]
+
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+}
+
 prometheus.remote_write "central" {
   endpoint {
     url = "{{ alloy_prometheus_remote_write_url }}"

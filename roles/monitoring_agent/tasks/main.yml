@@ -57,6 +57,52 @@
     group: root
     mode: "0640"
 
+- name: Create internal monitoring Docker network
+  community.docker.docker_network:
+    name: "{{ monitoring_agent_docker_network }}"
+    driver: bridge
+    internal: true
+    state: present
+
+- name: Run cAdvisor container
+  community.docker.docker_container:
+    name: "{{ cadvisor_container_name }}"
+    image: "{{ cadvisor_image }}"
+    pull: missing
+    state: started
+    restart_policy: unless-stopped
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+    mounts:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+    networks:
+      - name: "{{ monitoring_agent_docker_network }}"
+        aliases:
+          - cadvisor
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opts:
+      - no-new-privileges:true
+
 - name: Run Alloy monitoring container
   community.docker.docker_container:
     name: "{{ alloy_container_name }}"
@@ -97,5 +143,8 @@
       - /tmp
     cap_drop:
       - ALL
+    networks:
+      - name: bridge
+      - name: "{{ monitoring_agent_docker_network }}"
     security_opts:
       - no-new-privileges:true

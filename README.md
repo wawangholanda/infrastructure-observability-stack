@@ -127,6 +127,7 @@ The stack uses persistent Docker volumes for Grafana, Prometheus, and Loki data.
 - SSH host-key checking is enabled by default.
 - Use dedicated credentials and least-privilege access where practical.
 - Keep `.secrets/.env` private and out of version control.
+- cAdvisor requires Docker socket access for Docker container discovery. A read-only socket mount does not restrict Docker API operations; protect host access, keep cAdvisor on its internal monitoring network, and do not publish its port.
 - Restrict Grafana, Prometheus, and Loki network exposure to trusted networks.
 - Review firewall rules before exposing any service beyond your lab.
 - Review backup access and retention policies, especially if logs contain sensitive information.
