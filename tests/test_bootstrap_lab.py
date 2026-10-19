@@ -54,6 +54,9 @@ class BootstrapLabTests(unittest.TestCase):
             "2",              # use SSH password
             "",               # sudo/become password required
             "", "",           # Grafana bind addresses
+            "",               # Grafana host port defaults to 3000
+            "",               # Prometheus host port defaults to 9090
+            "",               # Loki host port defaults to 3100
             "",               # confirm writing config
             "",               # Grafana username
         ]
@@ -92,6 +95,15 @@ class BootstrapLabTests(unittest.TestCase):
         )
         self.assertEqual(profile["lab"]["ssh"]["auth_method"], "password")
         self.assertIsNone(profile["lab"]["ssh"]["private_key"])
+        self.assertEqual(profile["lab"]["grafana"]["host_port"], 3000)
+        self.assertEqual(
+            profile["lab"]["monitoring"]["prometheus_remote_write_port"], 9090
+        )
+        self.assertEqual(profile["lab"]["monitoring"]["loki_push_port"], 3100)
+        self.assertEqual(
+            inventory["all"]["vars"]["prometheus_remote_write_port"], 9090
+        )
+        self.assertEqual(inventory["all"]["vars"]["loki_push_port"], 3100)
         self.assertNotIn(password, profile_path.read_text(encoding="utf-8"))
         self.assertNotIn(password, inventory_path.read_text(encoding="utf-8"))
 
@@ -104,9 +116,22 @@ class BootstrapLabTests(unittest.TestCase):
             {
                 "grafana_wireguard_bind_ip": "127.0.0.1",
                 "grafana_lan_bind_ip": "192.168.50.10",
+                "grafana_host_port": 3000,
+                "prometheus_host_port": 9090,
+                "loki_host_port": 3100,
                 "monitoring_listen_ip": "192.168.50.10",
             },
         )
+
+    def test_prompt_port_rejects_invalid_values_then_accepts_valid_port(self):
+        with patch("builtins.input", side_effect=["abc", "0", "65536", "3002"]):
+            self.assertEqual(BOOTSTRAP.prompt_port("Grafana host port"), 3002)
+
+    def test_prompt_port_accepts_boundary_values(self):
+        with patch("builtins.input", side_effect=["1"]):
+            self.assertEqual(BOOTSTRAP.prompt_port("Grafana host port"), 1)
+        with patch("builtins.input", side_effect=["65535"]):
+            self.assertEqual(BOOTSTRAP.prompt_port("Grafana host port"), 65535)
 
     def test_monitoring_compose_exposes_remote_ingest_ports_on_configured_ip(self):
         compose = (
@@ -116,8 +141,8 @@ class BootstrapLabTests(unittest.TestCase):
             / "docker-compose.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("--web.enable-remote-write-receiver", compose)
-        self.assertIn('{{ monitoring_listen_ip }}:9090:9090', compose)
-        self.assertIn('{{ monitoring_listen_ip }}:3100:3100', compose)
+        self.assertIn('{{ monitoring_listen_ip }}:{{ prometheus_host_port }}:9090', compose)
+        self.assertIn('{{ monitoring_listen_ip }}:{{ loki_host_port }}:3100', compose)
 
     def test_existing_configuration_is_preserved(self):
         profile_path = self.root / ".secrets/assets/lab.yml"

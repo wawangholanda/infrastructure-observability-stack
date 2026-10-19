@@ -104,20 +104,10 @@ if [[ "$MODE" == "menu" ]]; then
   if [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]]; then
     [[ -f "$STATE_FILE" && ! -L "$STATE_FILE" ]] ||
       fail "Profile state must be a regular, non-symlink file."
-
-    PROFILE_STATUS="$("$ROOT_DIR/scripts/profile-manager.sh" status)" ||
-      fail "Could not validate saved profile state."
-
-    if grep -Fxq 'Active profile: single' <<< "$PROFILE_STATUS" &&
-       grep -Fxq 'Deployment status: deployed' <<< "$PROFILE_STATUS"; then
-      MODE="single"
-      info "Using saved profile: Single Instance (single/deployed)"
-    else
-      show_profile_menu
-    fi
-  else
-    show_profile_menu
   fi
+
+  # A saved deployment profile must never bypass explicit user selection.
+  show_profile_menu
 fi
 
 case "$MODE" in
@@ -194,7 +184,22 @@ BOOTSTRAP_HELPER="$ROOT_DIR/scripts/bootstrap-lab.py"
   fail "Required file is missing or empty: scripts/bootstrap-lab.py"
 
 info "Checking lab configuration"
+PORTS_ALREADY_CONFIGURED=false
+if [[ -s "$ROOT_DIR/.secrets/assets/lab.yml" &&
+      -s "$INVENTORY_FILE" &&
+      -s "$LOCAL_BIND_VARS_FILE" ]]; then
+  PORTS_ALREADY_CONFIGURED=true
+fi
+
 python "$BOOTSTRAP_HELPER" --config-dir "$ROOT_DIR"
+
+if [[ "$PORTS_ALREADY_CONFIGURED" == true ]]; then
+  PORT_CONFIG_HELPER="$ROOT_DIR/scripts/configure-monitoring-ports.py"
+  [[ -s "$PORT_CONFIG_HELPER" ]] ||
+    fail "Required file is missing or empty: scripts/configure-monitoring-ports.py"
+  info "Configuring monitoring host ports"
+  python "$PORT_CONFIG_HELPER" --config-dir "$ROOT_DIR"
+fi
 
 # Automated workstation support is intentionally limited to these platforms.
 WORKSTATION_SUPPORTED=false
@@ -280,6 +285,43 @@ if ssh.get("auth_method") not in {"key", "password"}:
 if not isinstance(ssh.get("become_password_required"), bool):
     print("ERROR: lab.ssh.become_password_required must be true or false.", file=sys.stderr)
     raise SystemExit(1)
+
+grafana = lab.get("grafana")
+if not isinstance(grafana, dict):
+    print(
+        "ERROR: Lab profile is missing lab.grafana settings. "
+        "Migrate the existing lab profile to include lab.grafana.host_port.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+host_port = grafana.get("host_port")
+if isinstance(host_port, bool) or not isinstance(host_port, int) or not 1 <= host_port <= 65535:
+    print(
+        "ERROR: lab.grafana.host_port must be an integer between 1 and 65535. "
+        "Migrate the existing lab profile and set the Grafana host port "
+        "(for example, 3002).",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+monitoring = lab.get("monitoring")
+if not isinstance(monitoring, dict):
+    print(
+        "ERROR: Lab profile must define lab.monitoring settings, including "
+        "prometheus_remote_write_port and loki_push_port.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+for key in ("prometheus_remote_write_port", "loki_push_port"):
+    port = monitoring.get(key)
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        print(
+            f"ERROR: lab.monitoring.{key} must be an integer between 1 and 65535.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
 print("Lab profile validation: PASS")
 PYPROFILECHECK

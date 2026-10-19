@@ -50,6 +50,18 @@ def prompt_ipv4(label, default):
         print("Enter a valid IPv4 address.")
 
 
+def prompt_port(label, default=3002):
+    while True:
+        value = prompt_required(label, str(default))
+        try:
+            port = int(value)
+            if 1 <= port <= 65535:
+                return port
+        except ValueError:
+            pass
+        print("Enter a port number between 1 and 65535.")
+
+
 def prompt_password(label, minimum_length=1):
     while True:
         value = getpass.getpass(f"{label}: ")
@@ -196,6 +208,9 @@ def build_profile():
             "Grafana WireGuard and LAN bind addresses must differ; "
             "binding the same IP and port twice can prevent startup."
         )
+    grafana_host_port = prompt_port("Grafana host port", 3000)
+    prometheus_host_port = prompt_port("Prometheus host port", 9090)
+    loki_host_port = prompt_port("Loki host port", 3100)
 
     profile = {
         "lab": {
@@ -216,12 +231,13 @@ def build_profile():
             },
             "monitoring": {
                 "endpoint_host": endpoint,
-                "prometheus_remote_write_port": 9090,
-                "loki_push_port": 3100,
+                "prometheus_remote_write_port": prometheus_host_port,
+                "loki_push_port": loki_host_port,
             },
             "grafana": {
                 "wireguard_bind_ip": wireguard_ip,
                 "lan_bind_ip": lan_ip,
+                "host_port": grafana_host_port,
             },
         }
     }
@@ -230,8 +246,8 @@ def build_profile():
         "ansible_user": ssh_user,
         "ansible_become": True,
         "monitoring_endpoint_host": endpoint,
-        "prometheus_remote_write_port": 9090,
-        "loki_push_port": 3100,
+        "prometheus_remote_write_port": prometheus_host_port,
+        "loki_push_port": loki_host_port,
     }
     if private_key:
         inventory_vars["ansible_ssh_private_key_file"] = private_key
@@ -257,6 +273,9 @@ def build_profile():
     bind_vars = {
         "grafana_wireguard_bind_ip": wireguard_ip,
         "grafana_lan_bind_ip": lan_ip,
+        "grafana_host_port": grafana_host_port,
+        "prometheus_host_port": prometheus_host_port,
+        "loki_host_port": loki_host_port,
         "monitoring_listen_ip": server_ip,
     }
 
