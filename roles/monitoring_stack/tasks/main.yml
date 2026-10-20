@@ -63,6 +63,22 @@
     group: root
     mode: "0640"
 
+- name: Install Grafana container resource dashboard
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../files/monitoring/grafana/dashboards/container-resource-overview.json"
+    dest: "{{ monitoring_base_dir }}/grafana/dashboards/container-resource-overview.json"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install Grafana container logs dashboard
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../files/monitoring/grafana/dashboards/container-logs-explorer.json"
+    dest: "{{ monitoring_base_dir }}/grafana/dashboards/container-logs-explorer.json"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Install monitoring environment secrets
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../.secrets/.env"
@@ -108,4 +124,23 @@
     entity: "10001"
     etype: user
     permissions: "r--"
+    state: present
+
+- name: Grant Grafana traversal access to monitoring directories
+  ansible.posix.acl:
+    path: "{{ item }}"
+    entity: "472"
+    etype: user
+    permissions: "--x"
+    state: present
+  loop:
+    - "{{ monitoring_base_dir }}"
+    - "{{ monitoring_base_dir }}/grafana"
+
+- name: Grant Grafana read and traversal access to dashboard directory
+  ansible.posix.acl:
+    path: "{{ monitoring_base_dir }}/grafana/dashboards"
+    entity: "472"
+    etype: user
+    permissions: "r-x"
     state: present
