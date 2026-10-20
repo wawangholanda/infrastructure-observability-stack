@@ -46,6 +46,19 @@ def main():
         log_path = inspected.get("LogPath", "")
         name = inspected.get("Name", "").lstrip("/")
         image = inspected.get("Config", {}).get("Image", "")
+        image_name = image.rsplit("/", 1)[-1].split(":", 1)[0].split("@", 1)[0]
+
+        monitoring_container_names = {
+            "monitoring-alloy",
+            "ec2-monitoring-alloy",
+            "monitoring-cadvisor",
+        }
+        if name in monitoring_container_names or image_name in {"alloy", "cadvisor"}:
+            print(
+                f"Skipping {name!r}: monitoring container is not an application log target",
+                file=sys.stderr,
+            )
+            continue
 
         if log_config.get("Type") != "json-file":
             print(

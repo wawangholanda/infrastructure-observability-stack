@@ -56,6 +56,7 @@
     owner: root
     group: root
     mode: "0640"
+  notify: Restart Alloy after configuration changes
 
 - name: Create internal monitoring Docker network
   community.docker.docker_network:
@@ -90,6 +91,10 @@
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
+        read_only: true
+      - type: bind
+        source: /run/containerd/containerd.sock
+        target: /run/containerd/containerd.sock
         read_only: true
     networks:
       - name: "{{ monitoring_agent_docker_network }}"

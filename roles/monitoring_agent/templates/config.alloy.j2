@@ -8,8 +8,17 @@ prometheus.exporter.unix "host" {
   rootfs_path = "/host/root"
 }
 
-prometheus.scrape "host" {
+discovery.relabel "host" {
   targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ alloy_hostname_label }}"
+  }
+}
+
+prometheus.scrape "host" {
+  targets = discovery.relabel.host.output
   forward_to = [prometheus.remote_write.central.receiver]
 
   scrape_interval = "15s"

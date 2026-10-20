@@ -24,7 +24,7 @@ spec.loader.exec_module(discovery)
 
 
 class DockerLogDiscoveryTests(unittest.TestCase):
-    def test_discovers_all_json_file_containers_including_alloy(self):
+    def test_discovers_application_logs_and_skips_monitoring_containers(self):
         with tempfile.NamedTemporaryFile() as app_log, \
              tempfile.NamedTemporaryFile() as alloy_log, \
              tempfile.NamedTemporaryFile() as proxy_log:
@@ -41,6 +41,18 @@ class DockerLogDiscoveryTests(unittest.TestCase):
                     "Config": {"Image": "grafana/alloy:v1.20.1"},
                     "HostConfig": {"LogConfig": {"Type": "json-file"}},
                     "LogPath": alloy_log.name,
+                },
+                "legacy-alloy-id": {
+                    "Name": "/clever_robinson",
+                    "Config": {"Image": "grafana/alloy:v1.20.1"},
+                    "HostConfig": {"LogConfig": {"Type": "json-file"}},
+                    "LogPath": alloy_log.name,
+                },
+                "cadvisor-id": {
+                    "Name": "/monitoring-cadvisor",
+                    "Config": {"Image": "ghcr.io/google/cadvisor:v0.60.6"},
+                    "HostConfig": {"LogConfig": {"Type": "json-file"}},
+                    "LogPath": proxy_log.name,
                 },
                 "proxy-id": {
                     "Name": "/frontend-proxy",
@@ -78,9 +90,9 @@ class DockerLogDiscoveryTests(unittest.TestCase):
             targets = json.loads(stdout.getvalue())
             self.assertEqual(
                 [target["container"] for target in targets],
-                ["backend-app", "frontend-proxy", "monitoring-alloy"],
+                ["backend-app", "frontend-proxy"],
             )
-            self.assertEqual(len(targets), 3)
+            self.assertEqual(len(targets), 2)
             self.assertTrue(
                 all(target["path"].startswith("/host/root/") for target in targets)
             )

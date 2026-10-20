@@ -78,6 +78,42 @@ class CadvisorMonitoringTests(unittest.TestCase):
         self.assertIn('prometheus.remote_write "central"', self.template)
         self.assertIn('loki.write "central"', self.template)
 
+    def test_host_metrics_use_inventory_hostname_as_instance_label(self):
+        self.assertIn('discovery.relabel "host"', self.template)
+        self.assertIn(
+            'targets = prometheus.exporter.unix.host.targets',
+            self.template,
+        )
+        self.assertIn(
+            'target_label = "instance"\n    replacement  = "{{ alloy_hostname_label }}"',
+            self.template,
+        )
+        self.assertIn(
+            "targets = discovery.relabel.host.output",
+            self.template,
+        )
+
+    def test_alloy_configuration_change_notifies_restart_handler(self):
+        task = self.find_task("Install Alloy configuration")
+        self.assertEqual(
+            task.get("notify"),
+            "Restart Alloy after configuration changes",
+        )
+
+        handlers_path = (
+            ROOT_DIR / "roles/monitoring_agent/handlers/main.yml"
+        )
+        handlers = yaml.safe_load(handlers_path.read_text(encoding="utf-8"))
+        matches = [
+            handler for handler in handlers
+            if handler.get("name") == "Restart Alloy after configuration changes"
+        ]
+        self.assertEqual(len(matches), 1)
+        container = matches[0]["community.docker.docker_container"]
+        self.assertEqual(container["name"], "{{ alloy_container_name }}")
+        self.assertEqual(container["state"], "started")
+        self.assertTrue(container["restart"])
+
     def test_alloy_template_does_not_mount_docker_socket(self):
         tasks_text = TASKS_PATH.read_text(encoding="utf-8")
         alloy_task_start = tasks_text.index("- name: Run Alloy monitoring container")

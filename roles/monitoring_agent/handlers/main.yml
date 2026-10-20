@@ -1,0 +1,6 @@
+---
+- name: Restart Alloy after configuration changes
+  community.docker.docker_container:
+    name: "{{ alloy_container_name }}"
+    state: started
+    restart: true
