@@ -157,7 +157,7 @@ class GrafanaDashboardTests(unittest.TestCase):
 
         self.assertEqual(dashboard.get("title"), "Container Logs Explorer")
         self.assertEqual(dashboard.get("uid"), "container-logs-explorer")
-        self.assertEqual(len(dashboard.get("panels", [])), 5)
+        self.assertEqual(len(dashboard.get("panels", [])), 6)
 
         panels = {
             panel.get("title"): panel
@@ -171,6 +171,7 @@ class GrafanaDashboardTests(unittest.TestCase):
                 "Log Lines by Container",
                 "Container Logs",
                 "Top 10 HTTP Paths by Hits",
+                "Slow HTTP Requests (>300 ms)",
             },
         )
 
@@ -198,15 +199,52 @@ class GrafanaDashboardTests(unittest.TestCase):
             panels["Container Logs"]["targets"][0]["expr"],
         )
 
+        slow_requests = panels["Slow HTTP Requests (>300 ms)"]
+        self.assertEqual(slow_requests.get("type"), "logs")
+        self.assertEqual(slow_requests.get("gridPos", {}).get("y"), 36)
+        slow_query = slow_requests["targets"][0]["expr"]
+        self.assertEqual(slow_requests["targets"][0].get("queryType"), "range")
+        self.assertIn("RequestDuration > 300", slow_query)
+        self.assertIn('msg="REQUEST_LOG"', slow_query)
+        self.assertIn("| json", slow_query)
+        self.assertIn("| line_format", slow_query)
+        self.assertIn("{{.RequestDuration}}", slow_query)
+        self.assertIn("{{.StatusCode}}", slow_query)
+        self.assertIn("{{.URL}}", slow_query)
+
         top_paths = panels["Top 10 HTTP Paths by Hits"]
-        self.assertEqual(top_paths.get("type"), "barchart")
+        self.assertEqual(top_paths.get("type"), "bargauge")
         self.assertEqual(top_paths.get("datasource", {}).get("uid"), "loki")
         self.assertEqual(top_paths.get("targets", [{}])[0].get("queryType"), "range")
+        transformations = top_paths.get("transformations", [])
+        self.assertEqual(
+            [item.get("id") for item in transformations],
+            ["reduce", "sortBy"],
+        )
+        self.assertEqual(
+            transformations[0].get("options", {}).get("mode"),
+            "seriesToRows",
+        )
+        self.assertEqual(
+            transformations[0].get("options", {}).get("reducers"),
+            ["lastNotNull"],
+        )
+        sort_options = transformations[1].get("options", {})
+        self.assertEqual(
+            sort_options.get("sort"),
+            [{"field": "Last *", "desc": True}],
+        )
         top_paths_query = top_paths["targets"][0]["expr"]
         self.assertIn("topk(10,", top_paths_query)
         self.assertIn("sum by (path)", top_paths_query)
         self.assertIn("| json", top_paths_query)
-        self.assertIn('path != ""', top_paths_query)
+        self.assertIn('msg="REQUEST_LOG"', top_paths_query)
+        self.assertIn('URL != ""', top_paths_query)
+        self.assertIn('__error__!="JSONParserErr"', top_paths_query)
+        self.assertIn("label_format path=", top_paths_query)
+        self.assertIn("regexReplaceAll", top_paths_query)
+        self.assertIn(r'\\?.*$', top_paths_query)
+        self.assertIn('"^[^/]+"', top_paths_query)
         self.assertIn('instance=~"$host"', top_paths_query)
         self.assertIn('container=~"$container"', top_paths_query)
         self.assertNotIn("container_name_actual", top_paths_query)
